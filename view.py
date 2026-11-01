@@ -19,11 +19,12 @@ if get_port() is None:
 set_defaults(reset_camera=Camera.KEEP, axes=False, grid=(True, False, False))
 
 show(
-    k.build_plinth(),
-    k.build_cover(),
+    k.build_cradle(),
+    k.build_rear_box(),
+    k.build_rear_lid(),
     k.build_reference_speaker(),
-    k.build_reference_stand_base(),
-    names=["plinth", "bottom_cover", "ref_soundcore2", "ref_stand_base"],
-    colors=["#4d4f57", "#7a7c84", "#2666d9", "#d99e33"],
-    alphas=[1.0, 1.0, 0.45, 0.35],
+    k.build_reference_stand(),
+    names=["cradle", "rear_box", "rear_lid", "ref_soundcore2", "ref_stand"],
+    colors=["#4d4f57", "#7a7c84", "#9a9ca3", "#2666d9", "#d99e33"],
+    alphas=[1.0, 1.0, 1.0, 0.45, 0.35],
 )

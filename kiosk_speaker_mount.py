@@ -1,14 +1,17 @@
 """
-Kiosk speaker plinth for the AboveTEK countertop tablet stand + Anker Soundcore 2.
+Kiosk speaker cradle for the AboveTEK countertop tablet stand + Anker Soundcore 2.
 
-The stand's base nests in a recess on top of a hollow plinth. The speaker sits in a
-front cradle (top buttons stay fully exposed) with an open-floor "port bay" at the
-flap end so the Micro-USB and AUX plugs can stay connected and drop into the hidden
-cavity. A USB splitter / spare cable lives in the cavity; one input cable exits the back.
+The speaker sits in a cradle on the front of the stand's base plate, below the tablet,
+grille facing the customer. A tongue on the back of the cradle passes through the oval
+cutout in the stand's upright and is screwed (security Torx) to a rear box on the staff
+side, clamping the steel plate between them: the parts can't be separated without the
+driver. The speaker's USB/AUX plugs stay connected in an enclosed port bay at the flap
+end; the cables run through a channel behind the speaker and through the tongue into
+the rear box, which hides a USB splitter. One input cable exits the rear box.
 
-Run:  python kiosk_speaker_mount.py   -> writes STEP + STL files to ./output
-All dimensions are in millimetres. Coordinates: X across (centered), Y front->back
-(front face at Y=0), Z up (bottom of plinth at Z=0).
+Run:  python kiosk_speaker_mount.py   -> checks the fit, writes STEP + STL files to ./output
+All dimensions are in millimetres. Coordinates: X across (0 = center of the oval cutout),
+Y front->back (0 = front face of the stand's upright), Z up (0 = counter top).
 """
 
 from pathlib import Path
@@ -16,102 +19,110 @@ from pathlib import Path
 import cadquery as cq
 
 # ---------------------------------------------------------------- parameters
-# Stand base (from product image; MEASURE AND UPDATE)
-STAND_BASE_W = 175.0  # side to side
-STAND_BASE_D = 160.0  # front to back
-STAND_BASE_T = 4.0  # steel plate thickness (= recess depth, base sits flush)
-STAND_BASE_R = 10.0  # base corner radius
-# Optional bolt-through holes matching the stand's base holes, (x, y) from the
-# stand-base center (+y toward the back). Example: [(-60, -50), (60, -50), (-60, 50), (60, 50)]
-STAND_HOLES: list[tuple[float, float]] = []
-STAND_HOLE_D = 4.5
+# Stand (AboveTEK, scaled from product photos; MEASURE AND UPDATE).
+# One bent steel sheet: the base plate runs forward under the tablet and curves up
+# at its back edge into the upright.
+PLATE_T = 4.0  # steel sheet thickness (base and upright; what the clamp grips)
+BASE_W = 175.0  # base plate width
+BASE_R = 10.0  # base plate front corner radius
+BASE_FRONT = 150.0  # from the base plate's front edge back to the upright's front face
+BEND_R = 25.0  # inside radius where the base plate curves up into the upright
+STAND_H = 165.0  # counter to the tablet-clamp pivot
+# Upright outline as (height above counter, half-width) pairs, bottom to top
+UPRIGHT_PROFILE = [(0.0, 87.5), (15.0, 60.0), (40.0, 45.0), (80.0, 35.0), (120.0, 28.0), (STAND_H, 28.0)]
+OVAL_W = 38.0  # oval cutout width
+OVAL_Z0, OVAL_Z1 = 2.0, 92.0  # oval cutout bottom and top, above the counter
+TABLET_CLEAR_Z = 76.0  # counter to the tablet's lowest edge; every part must stay below this
 
 # Speaker (Anker Soundcore 2: 6.5 x 1.77 x 2.13 in; MEASURE AND UPDATE)
 SPK_L, SPK_D, SPK_H = 165.0, 45.0, 54.0
 PORT_END = "right"  # end with the USB/AUX flap, as seen facing the grille: "right" or "left"
 PORT_BAY = 32.0  # extra length at that end for plugs (right-angle plugs recommended)
 FIT = 1.5  # clearance per side around speaker
-STAND_FIT = 1.0  # clearance per side around stand base
+STAND_FIT = 1.0  # clearance around the stand's bend
 
-# Plinth body
+# Cradle
 WALL = 3.0
-TOP_T = 3.0  # thickness of the top deck / pocket floor
-H = 38.0  # overall plinth height
-POCKET_DEPTH = 20.0  # how far the speaker sits down into the plinth (top buttons stay clear)
-FRONT_LIP = 8.0  # front lip height above pocket floor (keeps the grille exposed)
+FLOOR_T = 6.0  # cradle floor; rests on the base plate and holds the strap grooves underneath
+POCKET_DEPTH = 20.0  # how far the speaker sits down into the cradle (top buttons stay clear)
+FRONT_LIP = 8.0  # front lip height above the floor (keeps the grille exposed)
 CORNER_R = 6.0
-
-# Cable openings
-TABLET_SLOT_W = 34.0  # rear-top notch for tablet charge + audio cables
-TABLET_SLOT_D = 12.0
-INPUT_NOTCH_W = 14.0  # rear-bottom notch for the single incoming cable
-INPUT_NOTCH_H = 10.0
-INPUT_NOTCH_X = 55.0
+CLAMP_WALL_T = 5.0  # cradle back wall that presses on the upright (holds the tongue inserts)
+CHANNEL_D = 12.0  # cable channel behind the speaker, front to back
 STRAP_SLOTS = True  # slots for an optional hook-and-loop strap at each speaker end
 STRAP_W = 16.0
 STRAP_T = 4.0
 STRAP_X = 72.0  # strap offset from speaker center (kept outside the top buttons)
 
-# Bottom cover + fasteners (M3 heat-set inserts)
-COVER_T = 3.0
-BOSS_D = 9.0
+# Clamp through the oval: M3 heat-set inserts in the tongue, M3 security Torx screws from the rear box
+TONGUE_Z0, TONGUE_Z1 = 34.0, 60.0  # tongue bottom and top, above the counter
+OVAL_FIT = 1.0  # clearance between the tongue and the oval
+CLAMP_GAP = 0.5  # tongue is this much shorter than PLATE_T so the screws pull both parts onto the plate
+PASS_W, PASS_H = 14.0, 14.0  # cable passage through the tongue and the rear box front wall
+CLAMP_SCREW_X = 13.5  # clamp screws at +/- this X, at tongue mid-height
 INSERT_HOLE_D = 4.0
 INSERT_DEPTH = 6.0
 SCREW_CLEAR_D = 3.4
-CSK_D = 6.5
-FOOT_D = 10.5  # recesses for stick-on rubber feet
-FOOT_DEPTH = 1.0
-FOOT_INSET = 18.0
 
-# Internal support ribs (let the plinth print right-side up without supports).
-# Ribs run side to side; pointed-arch openings print without supports and pass cables.
-RIB_T = 2.0
-DECK_RIBS = 3  # ribs under the stand deck
-DECK_RIB_OPENINGS_X = (-60.0, 0.0, 60.0)
-DECK_RIB_OPENING_W = 40.0
-DIVIDER_OPENING_W = 20.0  # openings in the rib under the cradle's back wall
-ARCH_CLEARANCE = 3.0  # min material between arch peak and ceiling
+# Rear box (staff side; hides the USB splitter)
+SPLITTER_L, SPLITTER_W, SPLITTER_H = 60.0, 30.0, 20.0  # splitter length (X), width (Z), thickness (Y); MEASURE
+REAR_WALL = 3.0
+LID_T = 3.0
+LID_BOSS_D = 8.0
+TABLET_SLOT_W = 20.0  # top notch: tablet charge + AUX cables up to the tablet
+INPUT_NOTCH_W = 10.0  # bottom notch: the single incoming cable
+CABLE_NOTCH_D = 10.0  # how far both notches reach in from the lid edge
 
 OUT_DIR = Path(__file__).parent / "output"
 
 # ---------------------------------------------------------------- derived
+oval_cz = (OVAL_Z0 + OVAL_Z1) / 2
+oval_h = OVAL_Z1 - OVAL_Z0
+
 pocket_w = SPK_D + 2 * FIT
 spk_len = SPK_L + 2 * FIT
 pocket_len = spk_len + PORT_BAY
-recess_w = STAND_BASE_W + 2 * STAND_FIT
-recess_d = STAND_BASE_D + 2 * STAND_FIT
+W = pocket_len + 2 * WALL
 
-W = max(pocket_len, recess_w) + 2 * WALL
-D = 3 * WALL + pocket_w + recess_d
+# Back section between the speaker and the upright; at least deep enough that the
+# pocket floor (and the strap grooves under it) end a wall's thickness in front of the bend clearance
+spine_d = max(CLAMP_WALL_T + CHANNEL_D + WALL, BEND_R + STAND_FIT + WALL)
+pocket_y1 = -spine_d
+pocket_y0 = pocket_y1 - pocket_w
+cradle_y0 = pocket_y0 - WALL
+channel_y0, channel_y1 = -CLAMP_WALL_T - CHANNEL_D, -CLAMP_WALL_T
 
-pocket_y0, pocket_y1 = WALL, WALL + pocket_w
-recess_y0 = pocket_y1 + WALL
-recess_y1 = recess_y0 + recess_d
-recess_cy = (recess_y0 + recess_y1) / 2
-
-pocket_floor_z = H - POCKET_DEPTH
-cavity_a_top = pocket_floor_z - TOP_T  # under the speaker
-cavity_b_top = H - STAND_BASE_T - TOP_T  # under the stand
+floor_z = PLATE_T + FLOOR_T  # speaker bottom
+rim_z = floor_z + POCKET_DEPTH
+tongue_cz = (TONGUE_Z0 + TONGUE_Z1) / 2
+tongue_y1 = PLATE_T - CLAMP_GAP
+back_z = TONGUE_Z1 + WALL  # top of the back section and the port-bay walls
+pass_z0, pass_z1 = tongue_cz - PASS_H / 2, tongue_cz + PASS_H / 2
 
 if PORT_END == "right":
     spk_x0, spk_x1 = -pocket_len / 2, -pocket_len / 2 + spk_len
     bay_x0, bay_x1 = spk_x1, pocket_len / 2
+    ch_x0, ch_x1 = -PASS_W / 2, bay_x0 + 1
 else:
     spk_x0, spk_x1 = pocket_len / 2 - spk_len, pocket_len / 2
     bay_x0, bay_x1 = -pocket_len / 2, spk_x0
+    ch_x0, ch_x1 = bay_x1 - 1, PASS_W / 2
 spk_cx = (spk_x0 + spk_x1) / 2
 
-boss_inset = WALL + BOSS_D / 2 - 1.0
-bx = W / 2 - boss_inset
-# Front bosses avoid the port bay and strap slots: one at front-center, two just behind the cradle
-BOSS_PTS = [
-    (spk_cx, boss_inset),
-    (-bx, recess_y0 + boss_inset),
-    (bx, recess_y0 + boss_inset),
-    (-bx, recess_cy),
-    (bx, recess_cy),
-    (-bx, D - boss_inset),
-    (bx, D - boss_inset),
+CLAMP_PTS = [(-CLAMP_SCREW_X, tongue_cz), (CLAMP_SCREW_X, tongue_cz)]  # (x, z)
+
+rear_in_w = SPLITTER_L + 2 * (LID_BOSS_D + 1)
+rear_in_h = SPLITTER_W + 6
+rear_in_d = SPLITTER_H + 4
+rear_w = rear_in_w + 2 * REAR_WALL
+rear_y0 = PLATE_T
+rear_y1 = rear_y0 + REAR_WALL + rear_in_d  # open back, closed by the lid
+rear_z0 = PLATE_T + BEND_R + STAND_FIT  # clears the bend behind the upright
+rear_z1 = rear_z0 + rear_in_h + 2 * REAR_WALL
+lid_bx = rear_in_w / 2 - LID_BOSS_D / 2 + 1
+LID_PTS = [  # (x, z), diagonal corners
+    (-lid_bx, rear_z0 + REAR_WALL + LID_BOSS_D / 2 - 1),
+    (lid_bx, rear_z1 - REAR_WALL - LID_BOSS_D / 2 + 1),
 ]
 
 
@@ -127,104 +138,102 @@ def cyl(x, y, d, z0, z1):
     return cq.Workplane("XY").workplane(offset=z0).center(x, y).circle(d / 2).extrude(z1 - z0)
 
 
-def arch_rib(y0, y1, top, openings_x, opening_w):
-    """Side-to-side rib from the floor to `top`, with pointed-arch (45 deg roof) openings."""
-    rib = box(-W / 2 + WALL - 0.5, W / 2 - WALL + 0.5, y0, y1, 0, top + 0.5)
-    half = opening_w / 2
-    shoulder = max(0.0, top - ARCH_CLEARANCE - half)
-    for x in openings_x:
-        arch = (
-            cq.Workplane("XZ")
-            .polyline([(x - half, -1), (x + half, -1), (x + half, shoulder), (x, shoulder + half), (x - half, shoulder)])
-            .close()
-            .extrude((y1 - y0) / 2 + 1, both=True)
-            .translate((0, (y0 + y1) / 2, 0))
-        )
-        rib = rib.cut(arch)
-    return rib
+def cyl_x(y, z, d, x0, x1):
+    return cq.Workplane("YZ").center(y, z).circle(d / 2).extrude(x1 - x0).translate((x0, 0, 0))
 
 
-def build_ribs():
-    divider_openings = ((bay_x0 + bay_x1) / 2, spk_cx - 40, spk_cx + 40)
-    ribs = arch_rib(pocket_y1, recess_y0, cavity_a_top, divider_openings, DIVIDER_OPENING_W)
-    span = (D - WALL) - recess_y0
-    for i in range(1, DECK_RIBS + 1):
-        y = recess_y0 + i * span / (DECK_RIBS + 1)
-        ribs = ribs.union(arch_rib(y - RIB_T / 2, y + RIB_T / 2, cavity_b_top, DECK_RIB_OPENINGS_X, DECK_RIB_OPENING_W))
-    return ribs
+def cyl_y(x, z, d, y0, y1):
+    return cq.Workplane("XZ").center(x, z).circle(d / 2).extrude(y1 - y0).translate((0, y1, 0))
 
 
-def build_plinth():
-    body = cq.Workplane("XY").box(W, D, H, centered=(True, False, False)).edges("|Z").fillet(CORNER_R)
+def xz_prism(sketch, y0, y1):
+    """Extrude a closed sketch drawn on Workplane("XZ") (local x = X, local y = Z) from Y=y0 to Y=y1."""
+    return sketch.extrude(y1 - y0).translate((0, y1, 0))
 
-    # Hidden cavity (open bottom), minus screw bosses so they stay solid
-    cavity = box(-W / 2 + WALL, W / 2 - WALL, WALL, D - WALL, -1, cavity_a_top).union(
-        box(-W / 2 + WALL, W / 2 - WALL, recess_y0, D - WALL, -1, cavity_b_top)
+
+def yz_prism(pts, x0, x1):
+    """Extrude a (y, z) polygon from X=x0 to X=x1."""
+    return cq.Workplane("YZ").polyline(pts).close().extrude(x1 - x0).translate((x0, 0, 0))
+
+
+def upright_outline():
+    pts = [(hw, z) for z, hw in UPRIGHT_PROFILE] + [(-hw, z) for z, hw in reversed(UPRIGHT_PROFILE)]
+    return cq.Workplane("XZ").polyline(pts).close()
+
+
+def oval_sketch(inset=0.0):
+    return cq.Workplane("XZ").center(0, oval_cz).ellipse(OVAL_W / 2 - inset, oval_h / 2 - inset)
+
+
+def build_cradle():
+    tray = box(-W / 2, W / 2, cradle_y0, 0, PLATE_T, rim_z).edges("|Z").fillet(CORNER_R)
+    spine = box(-W / 2, W / 2, pocket_y1, 0, PLATE_T, back_z).edges("|Z").fillet(CORNER_R)
+    # Full-height walls around the port bay hide the plugs from the front
+    hx0, hx1, outer = (bay_x0, W / 2, ">X") if PORT_END == "right" else (-W / 2, bay_x1, "<X")
+    hood = box(hx0, hx1, cradle_y0, 0, PLATE_T, back_z).edges("|Z").edges(outer).fillet(CORNER_R)
+    body = tray.union(spine).union(hood)
+
+    # Speaker pocket + port bay (open top keeps the buttons accessible)
+    body = body.cut(box(-pocket_len / 2, pocket_len / 2, pocket_y0, pocket_y1, floor_z, back_z + 1))
+    # Lower front lip along the speaker so the grille is exposed
+    body = body.cut(box(spk_x0, spk_x1, cradle_y0 - 1, pocket_y0 + 0.01, floor_z + FRONT_LIP, back_z + 1))
+    # Port bay opens back into the cable channel
+    body = body.cut(box(bay_x0, bay_x1, pocket_y1 - 1, channel_y1, floor_z, back_z + 1))
+    # Cable channel behind the speaker, from the bay to the tongue
+    body = body.cut(box(ch_x0, ch_x1, channel_y0, channel_y1, pass_z0, pass_z1))
+
+    # Tongue through the oval, with a cable passage and the clamp-screw inserts
+    tongue = xz_prism(oval_sketch(OVAL_FIT), -CLAMP_WALL_T, tongue_y1).intersect(
+        box(-W / 2, W / 2, -CLAMP_WALL_T - 1, tongue_y1 + 1, TONGUE_Z0, TONGUE_Z1)
     )
-    for x, y in BOSS_PTS:
-        cavity = cavity.cut(cyl(x, y, BOSS_D, -2, H))
-    body = body.cut(cavity).union(build_ribs())
+    body = body.union(tongue)
+    body = body.cut(box(-PASS_W / 2, PASS_W / 2, channel_y0 + 1, tongue_y1 + 1, pass_z0, pass_z1))
+    for x, z in CLAMP_PTS:
+        body = body.cut(cyl_y(x, z, INSERT_HOLE_D, tongue_y1 - INSERT_DEPTH, tongue_y1 + 1))
 
-    # Stand base recess
-    recess = (
-        cq.Workplane("XY")
-        .workplane(offset=H - STAND_BASE_T)
-        .center(0, recess_cy)
-        .rect(recess_w, recess_d)
-        .extrude(STAND_BASE_T + 1)
-        .edges("|Z")
-        .fillet(STAND_BASE_R)
-    )
-    body = body.cut(recess)
-
-    # Speaker cradle + port bay (open top keeps the buttons accessible)
-    body = body.cut(box(-pocket_len / 2, pocket_len / 2, pocket_y0, pocket_y1, pocket_floor_z, H + 1))
-    # Lower front lip so the grille is exposed
-    body = body.cut(box(-pocket_len / 2, pocket_len / 2, -1, pocket_y0 + 0.01, pocket_floor_z + FRONT_LIP, H + 1))
-    # Open floor in the port bay so connected plugs/cables drop into the cavity
-    body = body.cut(box(bay_x0, bay_x1, pocket_y0, pocket_y1, cavity_a_top - 1, pocket_floor_z + 1))
+    # 45 deg chamfer under the back clears the stand's bend and prints without supports
+    k = BEND_R + STAND_FIT
+    body = body.cut(yz_prism([(-k - 1, PLATE_T - 1), (1, PLATE_T - 1), (1, PLATE_T + k + 1)], -W / 2 - 1, W / 2 + 1))
 
     if STRAP_SLOTS:
+        fy0, fy1 = pocket_y0 + 0.5, pocket_y1 - 0.5
         for dx in (-STRAP_X, STRAP_X):
-            for y in (pocket_y0 + 0.5, pocket_y1 - 0.5 - STRAP_T):
-                x = spk_cx + dx
-                body = body.cut(box(x - STRAP_W / 2, x + STRAP_W / 2, y, y + STRAP_T, cavity_a_top - 1, pocket_floor_z + 1))
-
-    # Rear-top notch for tablet cables (behind the stand upright)
-    body = body.cut(box(-TABLET_SLOT_W / 2, TABLET_SLOT_W / 2, D - WALL - TABLET_SLOT_D, D + 1, cavity_b_top - 1, H + 1))
-    # Rear-bottom notch for the single incoming cable
-    body = body.cut(box(INPUT_NOTCH_X - INPUT_NOTCH_W / 2, INPUT_NOTCH_X + INPUT_NOTCH_W / 2, D - WALL - 1, D + 1, -1, INPUT_NOTCH_H))
-
-    # Heat-set insert holes in the bosses
-    for x, y in BOSS_PTS:
-        body = body.cut(cyl(x, y, INSERT_HOLE_D, -1, INSERT_DEPTH))
-
-    for x, y in STAND_HOLES:
-        body = body.cut(cyl(x, recess_cy + y, STAND_HOLE_D, cavity_b_top - 1, H + 1))
+            x0, x1 = spk_cx + dx - STRAP_W / 2, spk_cx + dx + STRAP_W / 2
+            # Groove under the floor joins a slot at the front and back of the pocket
+            body = body.cut(box(x0, x1, fy0, fy1, PLATE_T - 1, PLATE_T + STRAP_T))
+            for y in (fy0, fy1 - STRAP_T):
+                body = body.cut(box(x0, x1, y, y + STRAP_T, PLATE_T - 1, floor_z + 1))
 
     return body
 
 
-def build_cover():
-    cover = (
-        cq.Workplane("XY")
-        .box(W, D, COVER_T, centered=(True, False, False))
-        .edges("|Z")
-        .fillet(CORNER_R)
-        .translate((0, 0, -COVER_T))
+def build_rear_box():
+    shell = box(-rear_w / 2, rear_w / 2, rear_y0, rear_y1, rear_z0, rear_z1).edges("|Y").fillet(CORNER_R)
+    shell = shell.cut(
+        box(-rear_in_w / 2, rear_in_w / 2, rear_y0 + REAR_WALL, rear_y1 + 1, rear_z0 + REAR_WALL, rear_z1 - REAR_WALL)
     )
-    # Workplane on the underside: local y = -global y
-    bottom = cq.Plane(origin=(0, 0, -COVER_T), xDir=(1, 0, 0), normal=(0, 0, -1))
-    cover = cover.copyWorkplane(cq.Workplane(bottom)).pushPoints([(x, -y) for x, y in BOSS_PTS]).cskHole(SCREW_CLEAR_D, CSK_D, 90)
+    for x, z in LID_PTS:
+        shell = shell.union(cyl_y(x, z, LID_BOSS_D, rear_y0 + REAR_WALL - 0.5, rear_y1))
+        shell = shell.cut(cyl_y(x, z, INSERT_HOLE_D, rear_y1 - INSERT_DEPTH, rear_y1 + 1))
 
-    for x in (-W / 2 + FOOT_INSET, W / 2 - FOOT_INSET):
-        for y in (FOOT_INSET, D - FOOT_INSET):
-            cover = cover.cut(cyl(x, y, FOOT_D, -COVER_T - 1, -COVER_T + FOOT_DEPTH))
+    # Front wall: cable passage + clamp screw holes (screw heads sit inside the box, under the lid)
+    shell = shell.cut(box(-PASS_W / 2, PASS_W / 2, rear_y0 - 1, rear_y0 + REAR_WALL + 1, pass_z0, pass_z1))
+    for x, z in CLAMP_PTS:
+        shell = shell.cut(cyl_y(x, z, SCREW_CLEAR_D, rear_y0 - 1, rear_y0 + REAR_WALL + 1))
 
-    for x, y in STAND_HOLES:
-        cover = cover.cut(cyl(x, recess_cy + y, STAND_HOLE_D, -COVER_T - 1, 1))
+    # Cable notches, open at the lid edge
+    shell = shell.cut(box(-TABLET_SLOT_W / 2, TABLET_SLOT_W / 2, rear_y1 - CABLE_NOTCH_D, rear_y1 + 1,
+                          rear_z1 - REAR_WALL - 1, rear_z1 + 1))
+    shell = shell.cut(box(-INPUT_NOTCH_W / 2, INPUT_NOTCH_W / 2, rear_y1 - CABLE_NOTCH_D, rear_y1 + 1,
+                          rear_z0 - 1, rear_z0 + REAR_WALL + 1))
+    return shell
 
-    return cover
+
+def build_rear_lid():
+    lid = box(-rear_w / 2, rear_w / 2, rear_y1, rear_y1 + LID_T, rear_z0, rear_z1).edges("|Y").fillet(CORNER_R)
+    for x, z in LID_PTS:
+        lid = lid.cut(cyl_y(x, z, SCREW_CLEAR_D, rear_y1 - 1, rear_y1 + LID_T + 1))
+    return lid
 
 
 def build_reference_speaker():
@@ -233,44 +242,81 @@ def build_reference_speaker():
         .box(SPK_L, SPK_D, SPK_H, centered=(True, True, False))
         .edges("|Y")
         .fillet(8)
-        .translate((spk_cx, (pocket_y0 + pocket_y1) / 2, pocket_floor_z))
+        .translate((spk_cx, (pocket_y0 + pocket_y1) / 2, floor_z))
     )
 
 
-def build_reference_stand_base():
-    return (
-        cq.Workplane("XY")
-        .rect(STAND_BASE_W, STAND_BASE_D)
-        .extrude(STAND_BASE_T)
+def build_reference_stand():
+    """One bent sheet: flat base plate in front, a quarter-circle bend, then the upright."""
+    hw0 = UPRIGHT_PROFILE[0][1]
+    zc = PLATE_T + BEND_R
+    base = (
+        box(-BASE_W / 2, BASE_W / 2, -BASE_FRONT, -BEND_R, 0, PLATE_T)
         .edges("|Z")
-        .fillet(STAND_BASE_R)
-        .translate((0, recess_cy, H - STAND_BASE_T))
+        .edges("<Y")
+        .fillet(BASE_R)
     )
+    bend = (
+        box(-hw0, hw0, -BEND_R, PLATE_T, 0, zc)
+        .intersect(cyl_x(-BEND_R, zc, 2 * (BEND_R + PLATE_T), -hw0 - 1, hw0 + 1))
+        .cut(cyl_x(-BEND_R, zc, 2 * BEND_R, -hw0 - 1, hw0 + 1))
+    )
+    upright = box(-hw0, hw0, 0, PLATE_T, zc, STAND_H)
+    sheet = bend.union(upright).intersect(xz_prism(upright_outline(), -BEND_R - 1, PLATE_T + 1))
+
+    oval = xz_prism(oval_sketch(), -BEND_R - 1, PLATE_T + 1)
+    return base.union(sheet).cut(oval)
+
+
+def check(cradle, rear, lid, spk, stand):
+    """Fail loudly if parts overlap, holes don't line up, or anything reaches the tablet."""
+    named = {"cradle": cradle, "rear_box": rear, "rear_lid": lid, "speaker": spk, "stand": stand}
+    for name in ("cradle", "rear_box", "rear_lid"):
+        assert named[name].val().isValid(), f"{name} is not a valid solid"
+    pairs = [("cradle", "speaker"), ("cradle", "stand"), ("rear_box", "stand"), ("rear_box", "cradle"),
+             ("rear_lid", "rear_box"), ("rear_lid", "stand"), ("speaker", "stand")]
+    for a, b in pairs:
+        vol = named[a].intersect(named[b]).val().Volume()
+        assert vol < 1e-6, f"{a} overlaps {b} by {vol:.3f} mm^3"
+    for x, z in CLAMP_PTS:
+        assert not cradle.val().isInside(cq.Vector(x, tongue_y1 - 1, z)), f"no insert hole in tongue at {x, z}"
+        assert not rear.val().isInside(cq.Vector(x, rear_y0 + REAR_WALL / 2, z)), f"no clamp screw hole at {x, z}"
+    for x, z in LID_PTS:
+        assert not rear.val().isInside(cq.Vector(x, rear_y1 - 1, z)), f"no lid insert hole at {x, z}"
+        assert not lid.val().isInside(cq.Vector(x, rear_y1 + LID_T / 2, z)), f"no lid screw hole at {x, z}"
+    top = max(floor_z + SPK_H, back_z, rear_z1)
+    assert top < TABLET_CLEAR_Z, f"parts reach Z={top:.1f}, above the tablet's lowest edge ({TABLET_CLEAR_Z})"
+    if cradle_y0 < -BASE_FRONT:
+        print(f"WARNING: cradle front (Y={cradle_y0:.1f}) overhangs the base plate's front edge (Y={-BASE_FRONT:.1f})")
 
 
 def main():
     OUT_DIR.mkdir(exist_ok=True)
-    plinth = build_plinth()
-    cover = build_cover()
+    cradle = build_cradle()
+    rear = build_rear_box()
+    lid = build_rear_lid()
     spk = build_reference_speaker()
-    stand = build_reference_stand_base()
+    stand = build_reference_stand()
+    check(cradle, rear, lid, spk, stand)
 
-    for name, part in (("plinth", plinth), ("bottom_cover", cover)):
-        assert part.val().isValid(), f"{name} is not a valid solid"
+    for name, part in (("cradle", cradle), ("rear_box", rear), ("rear_lid", lid)):
         cq.exporters.export(part, str(OUT_DIR / f"{name}.step"))
         cq.exporters.export(part, str(OUT_DIR / f"{name}.stl"), tolerance=0.05, angularTolerance=0.1)
 
     asm = (
         cq.Assembly(name="kiosk_speaker_mount")
-        .add(plinth, name="plinth", color=cq.Color(0.2, 0.2, 0.22))
-        .add(cover, name="bottom_cover", color=cq.Color(0.35, 0.35, 0.38))
+        .add(cradle, name="cradle", color=cq.Color(0.2, 0.2, 0.22))
+        .add(rear, name="rear_box", color=cq.Color(0.35, 0.35, 0.38))
+        .add(lid, name="rear_lid", color=cq.Color(0.45, 0.45, 0.48))
         .add(spk, name="ref_soundcore2", color=cq.Color(0.1, 0.3, 0.7, 0.6))
-        .add(stand, name="ref_stand_base", color=cq.Color(0.7, 0.7, 0.7, 0.6))
+        .add(stand, name="ref_stand", color=cq.Color(0.7, 0.7, 0.7, 0.6))
     )
     asm.export(str(OUT_DIR / "assembly_with_references.step"))
 
-    print(f"Plinth footprint: {W:.1f} x {D:.1f} mm, height {H:.1f} mm (+{COVER_T:.1f} mm cover)")
-    print(f"Cavity height: {cavity_a_top:.1f} mm under speaker, {cavity_b_top:.1f} mm under stand")
+    print("Checks passed: no overlaps, all screw holes line up, clear of the tablet")
+    print(f"Cradle: {W:.1f} x {-cradle_y0:.1f} mm footprint, {back_z:.1f} mm tall at the back")
+    print(f"Rear box: {rear_w:.1f} x {rear_y1 + LID_T - rear_y0:.1f} x {rear_z1 - rear_z0:.1f} mm (W x D x H, with lid)")
+    print(f"Speaker top at Z={floor_z + SPK_H:.1f} mm; tablet edge at Z={TABLET_CLEAR_Z:.1f} mm")
     print(f"Wrote files to {OUT_DIR}")
 
 

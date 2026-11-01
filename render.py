@@ -1,5 +1,5 @@
 """
-Render shaded PNG previews of the kiosk speaker plinth into ./renders.
+Render shaded PNG previews of the kiosk speaker cradle into ./renders.
 
 Run:  python render.py            (after editing parameters in kiosk_speaker_mount.py)
 Renders off-screen with VTK (bundled with CadQuery); no window opens.
@@ -15,8 +15,9 @@ import kiosk_speaker_mount as k
 RENDER_DIR = Path(__file__).parent / "renders"
 SIZE = (1400, 1000)
 
-PLINTH = (0.30, 0.31, 0.34)
-COVER = (0.48, 0.49, 0.52)
+CRADLE = (0.30, 0.31, 0.34)
+REAR = (0.48, 0.49, 0.52)
+LID = (0.60, 0.61, 0.64)
 SPEAKER = (0.15, 0.40, 0.85)
 STAND = (0.85, 0.62, 0.20)
 EDGE = (0.08, 0.08, 0.10)
@@ -83,9 +84,9 @@ def render(name, title, items, direction, ortho=False, zoom=1.15, viewup=(0, 0, 
     win.AddRenderer(ren)
 
     cam = ren.GetActiveCamera()
-    cx, cy, cz = 0.0, k.D / 2, k.H / 2
-    cam.SetFocalPoint(cx, cy, cz)
-    cam.SetPosition(cx + direction[0] * 1000, cy + direction[1] * 1000, cz + direction[2] * 1000)
+    # ResetCamera() below re-centers on the actors; only the direction matters here
+    cam.SetFocalPoint(0, 0, 0)
+    cam.SetPosition(direction[0] * 1000, direction[1] * 1000, direction[2] * 1000)
     cam.SetViewUp(*viewup)
     cam.SetParallelProjection(ortho)
     ren.ResetCamera()
@@ -119,48 +120,56 @@ def cut_x(wp, at, remove):
 
 def main():
     RENDER_DIR.mkdir(exist_ok=True)
-    plinth = k.build_plinth()
-    cover = k.build_cover()
+    for old in RENDER_DIR.glob("*.png"):
+        old.unlink()
+    cradle = k.build_cradle()
+    rear = k.build_rear_box()
+    lid = k.build_rear_lid()
     spk = k.build_reference_speaker()
-    stand = k.build_reference_stand_base()
+    stand = k.build_reference_stand()
 
-    full = [(plinth, PLINTH, 1.0), (cover, COVER, 1.0), (spk, SPEAKER, 0.45), (stand, STAND, 0.35)]
-    bare = [(plinth, PLINTH, 1.0), (cover, COVER, 1.0)]
+    parts = [(cradle, CRADLE, 1.0), (rear, REAR, 1.0), (lid, LID, 1.0)]
+    full = parts + [(spk, SPEAKER, 0.45), (stand, STAND, 0.35)]
 
-    lift = 70.0
     exploded = [
-        (plinth, PLINTH, 1.0),
-        (cover.translate((0, 0, -lift)), COVER, 1.0),
-        (spk.translate((0, 0, lift)), SPEAKER, 0.45),
-        (stand.translate((0, 0, lift * 1.4)), STAND, 0.35),
+        (cradle.translate((0, -60, 0)), CRADLE, 1.0),
+        (spk.translate((0, -60, 70)), SPEAKER, 0.45),
+        (stand, STAND, 0.35),
+        (rear.translate((0, 50, 0)), REAR, 1.0),
+        (lid.translate((0, 90, 0)), LID, 1.0),
     ]
 
     # Section views: cut away the half facing the camera so the cut face is visible
+    def section(at, remove, with_speaker=True):
+        items = [(cut_x(cradle, at, remove), CRADLE, 1.0), (cut_x(rear, at, remove), REAR, 1.0),
+                 (cut_x(lid, at, remove), LID, 1.0), (cut_x(stand, at, remove), STAND, 1.0)]
+        if with_speaker:
+            items.append((cut_x(spk, at, remove), SPEAKER, 0.45))
+        return items
+
     bay_x = (k.bay_x0 + k.bay_x1) / 2
-    bay_side = "+" if bay_x > 0 else "-"
-    other_side = "-" if bay_side == "+" else "+"
-    bay_dir = 1.0 if bay_side == "+" else -1.0
-    sect_bay = [(cut_x(plinth, bay_x, bay_side), PLINTH, 1.0),
-                (cut_x(cover, bay_x, bay_side), COVER, 1.0)]
-    sect_mid = [(cut_x(plinth, k.spk_cx, other_side), PLINTH, 1.0),
-                (cut_x(cover, k.spk_cx, other_side), COVER, 1.0),
-                (cut_x(spk, k.spk_cx, other_side), SPEAKER, 0.45)]
-    bay_focus = (bay_x, (k.pocket_y0 + k.pocket_y1) / 2, k.H * 0.6)
+    bay_dir = 1.0 if bay_x > 0 else -1.0
+    ch_x = (k.ch_x0 + k.ch_x1) / 2
+    ch_side = "+" if bay_x > 0 else "-"
+    bay_focus = (bay_x, (k.pocket_y0 + k.channel_y1) / 2, k.floor_z + 20)
+    rear_focus = (0, k.rear_y1, (k.rear_z0 + k.rear_z1) / 2)
 
     print("Rendering:")
-    render("01_front_with_refs", "Front-left: speaker (blue) + stand base (orange) references", full, (-0.8, -1.3, 0.9))
-    render("02_front_bare", "Front-left: plinth + cover only", bare, (-0.8, -1.3, 0.9))
-    render("03_back", "Back-right: tablet cable notch (top), input cable notch (bottom)", bare, (0.9, 1.3, 0.8))
-    render("04_port_bay", "Port bay close-up: open floor drops connected cables into cavity", bare,
-           (bay_dir * 0.6, -1.0, 1.2), zoom=2.2, focus=bay_focus)
+    render("01_front_with_refs", "Front-left: speaker (blue) on the stand (orange)", full, (-0.8, -1.3, 0.6))
+    render("02_front_bare", "Front-left: printed parts only (cradle, rear box, lid)", parts, (-0.8, -1.3, 0.9))
+    render("03_back", "Back-right: rear box clamped to the upright (cable notches top and bottom)", full,
+           (0.9, 1.3, 0.6))
+    render("04_port_bay", "Port bay: plugs stay connected; cables go back into the channel", [(cradle, CRADLE, 1.0)],
+           (bay_dir * 0.6, -1.0, 1.2), zoom=1.5, focus=bay_focus)
     render("05_top", "Top (orthographic)", full, (0, 0, 1), ortho=True, viewup=(0, 1, 0), zoom=1.2)
-    render("06_underside", "Underside, cover removed: ribs, bosses, cable cavity", [(plinth, PLINTH, 1.0)],
-           (-0.7, -1.0, -1.3), zoom=0.95)
-    render("07_exploded", "Exploded: stand base, speaker, plinth, cover", exploded, (-0.8, -1.3, 0.7), zoom=1.2)
-    render("08_section_port_bay", "Section through port bay (cable path into cavity)", sect_bay,
-           (bay_dir, -0.25, 0.3), ortho=True, zoom=1.3)
-    render("09_section_center", "Section through speaker center (cradle depth, ribs, cavity)", sect_mid,
-           (-bay_dir, -0.25, 0.3), ortho=True, zoom=1.3)
+    render("06_rear_open", "Rear box, lid off: splitter space, clamp screws, lid inserts",
+           [(cradle, CRADLE, 1.0), (rear, REAR, 1.0), (stand, STAND, 0.35)], (0.5, 1.4, 0.5), zoom=2.0,
+           focus=rear_focus)
+    render("07_exploded", "Exploded: cradle + speaker forward, rear box + lid back", exploded, (-0.9, -1.2, 0.7))
+    render("08_section_clamp", "Section at X=0: tongue through the oval, clamped by the rear box", section(0, "-"),
+           (-1, -0.15, 0.25), ortho=True, zoom=1.3)
+    render("09_section_channel", "Section through the cable channel behind the speaker", section(ch_x, ch_side),
+           (bay_dir, -0.15, 0.25), ortho=True, zoom=1.3)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ RENDER_DIR = Path(__file__).parent / "renders"
 SIZE = (1400, 1000)
 
 CRADLE = (0.30, 0.31, 0.34)
+GATE = (0.40, 0.41, 0.45)
 REAR = (0.48, 0.49, 0.52)
 LID = (0.60, 0.61, 0.64)
 SPEAKER = (0.15, 0.40, 0.85)
@@ -123,20 +124,31 @@ def main():
     for old in RENDER_DIR.glob("*.png"):
         old.unlink()
     cradle = k.build_cradle()
+    gate = k.build_end_gate()
     rear = k.build_rear_box()
     lid = k.build_rear_lid()
     spk = k.build_reference_speaker()
     stand = k.build_reference_stand()
 
-    parts = [(cradle, CRADLE, 1.0), (rear, REAR, 1.0), (lid, LID, 1.0)]
+    parts = [(cradle, CRADLE, 1.0), (gate, GATE, 1.0), (rear, REAR, 1.0), (lid, LID, 1.0)]
     full = parts + [(spk, SPEAKER, 0.45), (stand, STAND, 0.35)]
 
+    # Normal into the upright, toward the staff side (the rear box and lid move along it)
+    ny, nz = k.to_world(1, k.PLATE_T)
     exploded = [
         (cradle.translate((0, -60, 0)), CRADLE, 1.0),
+        (gate.translate((k.gate_side * 40, -60, 0)), GATE, 1.0),
         (spk.translate((0, -60, 70)), SPEAKER, 0.45),
         (stand, STAND, 0.35),
-        (rear.translate((0, 50, 0)), REAR, 1.0),
-        (lid.translate((0, 90, 0)), LID, 1.0),
+        (rear.translate((0, 50 * ny, 50 * nz)), REAR, 1.0),
+        (lid.translate((0, 90 * ny, 90 * nz)), LID, 1.0),
+    ]
+    # Loading: gate off, speaker partway out of the end it slides in from
+    loading = [
+        (cradle, CRADLE, 1.0),
+        (gate.translate((k.gate_side * 120, 0, 0)), GATE, 1.0),
+        (spk.translate((k.gate_side * 90, 0, 0)), SPEAKER, 0.45),
+        (stand, STAND, 0.35),
     ]
 
     # Section views: cut away the half facing the camera so the cut face is visible
@@ -152,24 +164,29 @@ def main():
     ch_x = (k.ch_x0 + k.ch_x1) / 2
     ch_side = "+" if bay_x > 0 else "-"
     bay_focus = (bay_x, (k.pocket_y0 + k.channel_y1) / 2, k.floor_z + 20)
-    rear_focus = (0, k.rear_y1, (k.rear_z0 + k.rear_z1) / 2)
+    rear_focus = (0, *k.to_world(k.rear_y1, (k.rear_z0 + k.rear_z1) / 2))
 
     print("Rendering:")
-    render("01_front_with_refs", "Front-left: speaker (blue) on the stand (orange)", full, (-0.8, -1.3, 0.6))
-    render("02_front_bare", "Front-left: printed parts only (cradle, rear box, lid)", parts, (-0.8, -1.3, 0.9))
+    render("01_front_with_refs", "Front-left: speaker (blue) held by two bars, on the leaning stand (orange)", full,
+           (-0.8, -1.3, 0.6))
+    render("02_front_bare", "Front-left: printed parts only (cradle, end gate, rear box, lid)", parts,
+           (-0.8, -1.3, 0.9))
     render("03_back", "Back-right: rear box clamped to the upright (cable notches top and bottom)", full,
            (0.9, 1.3, 0.6))
-    render("04_port_bay", "Port bay: plugs stay connected; cables go back into the channel", [(cradle, CRADLE, 1.0)],
-           (bay_dir * 0.6, -1.0, 1.2), zoom=1.5, focus=bay_focus)
+    render("04_port_bay", "Port bay: end-stop fins, plugs stay connected, cables go back into the channel",
+           [(cradle, CRADLE, 1.0)], (bay_dir * 0.6, -1.0, 1.2), zoom=1.5, focus=bay_focus)
     render("05_top", "Top (orthographic)", full, (0, 0, 1), ortho=True, viewup=(0, 1, 0), zoom=1.2)
     render("06_rear_open", "Rear box, lid off: splitter space, clamp screws, lid inserts",
            [(cradle, CRADLE, 1.0), (rear, REAR, 1.0), (stand, STAND, 0.35)], (0.5, 1.4, 0.5), zoom=2.0,
            focus=rear_focus)
-    render("07_exploded", "Exploded: cradle + speaker forward, rear box + lid back", exploded, (-0.9, -1.2, 0.7))
+    render("07_exploded", "Exploded: cradle, gate + speaker forward, rear box + lid back", exploded,
+           (-0.9, -1.2, 0.7))
     render("08_section_clamp", "Section at X=0: tongue through the oval, clamped by the rear box", section(0, "-"),
            (-1, -0.15, 0.25), ortho=True, zoom=1.3)
-    render("09_section_channel", "Section through the cable channel behind the speaker", section(ch_x, ch_side),
+    render("09_section_channel", "Section through the cable channel and the hollow back", section(ch_x, ch_side),
            (bay_dir, -0.15, 0.25), ortho=True, zoom=1.3)
+    render("10_loading", "Loading: gate off, speaker slides in under the bars to the end stop", loading,
+           (k.gate_side * 0.9, -1.3, 0.8))
 
 
 if __name__ == "__main__":

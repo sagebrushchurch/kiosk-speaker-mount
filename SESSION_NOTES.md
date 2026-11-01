@@ -3,22 +3,24 @@
 Design history, decisions, and open items for the kiosk speaker cradle (originally a plinth). Newest entries go at the top of **History**.
 
 ## Current status (2026-11-01)
-- **Redesigned** from a full-under-stand plinth to a clamp-on **cradle + rear box + lid**. The model is complete with **placeholder dimensions** scaled from product photos and the owner's photos. Nothing has been measured or test-printed yet.
-- `main()` now runs `check()` automatically: valid solids, no overlaps, screw holes aligned, and everything below the tablet.
+- Clamp-on **cradle + end gate + rear box + lid**. The upright leans toward the customer at 75°, the speaker slides in from the left under two top bars, and the cradle's back section is hollow. The model is complete with **placeholder dimensions** scaled from product photos and the owner's photos. Nothing has been measured or test-printed yet.
+- `main()` runs `check()` automatically: valid solids, no overlaps, screw holes aligned, speaker retained, and the customer-side parts below the tablet.
 - Outputs (STEP/STL) and renders are regenerated.
 - Preview tooling works: `render.py` produces PNGs, and `view.py` with the OCP CAD Viewer gives a live 3D view.
 
 ## Next steps
 1. **Measure the real parts** and update the parameters in `kiosk_speaker_mount.py`:
    - Stand: sheet thickness `PLATE_T`, oval width and heights (`OVAL_W`, `OVAL_Z0/Z1`), upright widths (`UPRIGHT_PROFILE`), bend radius `BEND_R`, base depth in front of the upright `BASE_FRONT`, and base width `BASE_W`.
-   - **Whether the upright leans or curves** between about Z 30 and 65 mm. The model assumes it's vertical; this is the biggest unmeasured risk for the clamp.
+   - **The upright's real angle** (`UPRIGHT_ANGLE`, currently the owner's stated 75°) and whether it's straight or curved between about Z 30 and 65 mm. The model assumes a straight lean.
    - `TABLET_CLEAR_Z`: counter to the tablet's lowest edge. The owner estimated about 3 in (76 mm).
    - Speaker: length, depth, and height (`SPK_L/D/H`). The current values come from the listing: 165 × 45 × 54 mm.
+   - Where the speaker's top buttons are, to make sure they sit between the bars (`BAR_X` = ±72 mm from the speaker's center).
+   - Where the plugs sit on the speaker's end face. The end-stop fins only cover 5 mm at the front and back so the plugs pass between them.
    - Plug lengths of the right-angle Micro-USB and AUX cables, which set `PORT_BAY` (currently 32 mm).
    - USB splitter size (`SPLITTER_L/W/H`, currently 60 × 30 × 20 mm).
 2. Regenerate, render, and review with the owner.
 3. Test-print. A small test piece of only the tongue and clamp wall would check the oval fit before the full cradle print.
-4. Possible refinements (each needs a plan and approval first): an `UPRIGHT_LEAN` parameter; an end stop so the speaker can't slide into the port bay (it can currently move up to about 32 mm minus the plug length); a lockable speaker retainer; hollowing the solid back section of the cradle to save plastic (the cradle is about 310 cm³).
+4. Possible refinements (each needs a plan and approval first): more hollowing if print time matters (slicer infill already makes the solid regions sparse, so the gain from the cavities is modest).
 
 ## Key decisions
 | Decision | Why |
@@ -28,10 +30,13 @@ Design history, decisions, and open items for the kiosk speaker cradle (original
 | **Clamp through the oval cutout** with a rear box on the staff side | The stand just sits on the counter (not fastened), so the mount has to hold onto the steel itself. The oval captures the tongue, and the screws pull both parts onto the plate. |
 | **Security Torx (pin-in-star) M3 screws** into heat-set inserts | The owner requires that the parts can't be separated easily. The screw heads are inside the rear box, under the lid. Bolting through the base plate's front holes was offered and declined. |
 | **Top open, buttons exposed** | The owner needs access to the speaker's top buttons. The speaker sits 20 mm deep and the front lip is only 8 mm, so the grille stays exposed. |
+| **Speaker slides in from the customer's left**, under two top bars, against end-stop fins, closed by a screwed end gate | The owner wanted the speaker unable to be lifted out. Bars at the ends keep the buttons and grille open, and the security Torx gate screw means only staff can remove it. This replaced the optional hook-and-loop strap slots. |
+| **Upright leans toward the customer at 75°** (`UPRIGHT_ANGLE`) | Stated by the owner (not yet measured). The clamp parts are built square to the plate in a "plate frame" and tilted with `tilt()`. The rear box is behind the upright, so it may rise above `TABLET_CLEAR_Z`. |
+| **Hollow back section**: sealed cavities with 3 mm walls, ribs, and 45° roofs | The owner asked to hollow out the back. Sealed cavities print without supports; they took the cradle from 310 to 212 cm³. |
 | **Cables stay plugged in**: port bay → channel behind the speaker → through the tongue → rear box | The owner wants the USB and AUX cables connected permanently. The cable path is enclosed so it's hidden from the customer. |
 | One input cable, with a splitter hidden in the rear box | The owner's requirement: a single charging cable for both the tablet and the speaker. |
-| Every part stays below `TABLET_CLEAR_Z` | The tablet hangs about 3 in (76 mm) above the counter at its lowest edge. |
-| No supports: 45° chamfer under the cradle's back clears the bend | The bend in the steel needs clearance under the cradle; a chamfer prints cleanly where a matching fillet would need supports. |
+| Every customer-side part stays below `TABLET_CLEAR_Z` | The tablet hangs about 3 in (76 mm) above the counter at its lowest edge. |
+| No supports: a chamfer under the cradle's back follows the bend's chord (about 52° with the 75° lean) | The bend in the steel needs clearance under the cradle; a chamfer prints cleanly where a matching fillet would need supports. |
 | CadQuery script → STEP | Parametric and version-controlled, and STEP imports cleanly into Onshape. |
 
 ## Environment notes
@@ -42,6 +47,13 @@ Design history, decisions, and open items for the kiosk speaker cradle (original
 - Rebuilding rewrites the timestamps inside the STEP files even when the geometry hasn't changed.
 
 ## History
+### 2026-11-01: Upright lean, speaker retention, hollow back
+- The owner said the upright leans toward the customer at 75°. Added `UPRIGHT_ANGLE`, a plate frame with `tilt()`, `to_world()`, `pz()`, and `face_y()`, and redefined Y=0 as the virtual inner corner of the bend. The tongue, passage, clamp inserts, rear box, lid, and the reference stand's upright and oval are now tilted. The cradle's back follows the leaning face and the bend chord.
+- The owner wanted the speaker unable to be lifted out, liked the end-stop idea, and suggested sliding it in from the customer's left. Added two 12 mm hoop bars at the speaker's center ± 72 mm, end-stop fins at the port bay, and a new printed part, `build_end_gate()`, held by 1 M3 security Torx screw into an insert. The strap slots and grooves were removed, along with `STRAP_*` and `spine_d`.
+- Hollowed the back section with `core_cuts()`: 4 sealed cavities, about 42 cm³ removed. The cradle went from 310 to 212 cm³.
+- `check()` now also covers the gate, its screw hole, and speaker retention (moving the speaker up or along X must hit a part). The tablet check applies only to customer-side parts. The checks also pass at 70°, 80°, and 90°.
+- New render `10_loading` shows the gate removed and the speaker sliding in. `view.py` shows the gate.
+
 ### 2026-11-01: Redesign to a clamp-on cradle
 - The owner asked why the plinth was so deep (219 mm) and wanted the speaker right up against the stand. They also pointed out that the stand just sits on the counter, so the plinth wasn't attached to anything.
 - From the owner's photos, the speaker goes on the **front (customer side), below the tablet**, which hangs about 3 in above the counter. The photos also show the stand is **one bent steel sheet**: the base runs forward under the tablet and curves up into the upright, with nothing behind the upright. The oval continues into the base as a narrow slot, and there are 4 countersunk counter-screw holes and rubber feet underneath.

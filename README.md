@@ -13,10 +13,23 @@ A hollow base for the AboveTEK countertop tablet stand. The stand's base plate s
 
 ## Regenerate
 ```bash
+python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
-python kiosk_speaker_mount.py
+python kiosk_speaker_mount.py   # writes output/*.step and *.stl
+python render.py                # writes renders/*.png
 ```
-All dimensions are parameters at the top of the script.
+All dimensions are parameters at the top of the script. The checked-in [.vscode/settings.json](.vscode/settings.json) points VS Code at `.venv`.
+
+## Preview
+**Live 3D in VS Code:** Install the **OCP CAD Viewer** extension (`bernhard-42.ocp-cad-viewer`). Open the viewer from the Command Palette with *OCP CAD Viewer: Open viewer*, then run [view.py](view.py). After you change a parameter, run `view.py` again; the view updates and keeps your camera angle.
+
+**Static renders:** [render.py](render.py) draws PNG images into [renders/](renders) off-screen. Run it again and commit the images whenever the design changes.
+
+| | | |
+|---|---|---|
+| ![front](renders/01_front_with_refs.png) | ![front bare](renders/02_front_bare.png) | ![back](renders/03_back.png) |
+| ![port bay](renders/04_port_bay.png) | ![top](renders/05_top.png) | ![underside](renders/06_underside.png) |
+| ![exploded](renders/07_exploded.png) | ![section port bay](renders/08_section_port_bay.png) | ![section center](renders/09_section_center.png) |
 
 **Measure these and update them before printing:**
 - `STAND_BASE_W/D/T/R`: stand base plate width, depth, thickness, and corner radius. They currently come from the product image (175 × 160 mm).
@@ -24,6 +37,15 @@ All dimensions are parameters at the top of the script.
 - `PORT_END`: which end has the USB/AUX flap when you face the grille. The default is `"right"`.
 - `PORT_BAY`: room for the connected plugs. 32 mm assumes right-angle plugs; increase it for straight plugs.
 - `STAND_HOLES`: hole positions if you want to bolt the stand through the plinth.
+
+## Project files
+| File | Purpose |
+|---|---|
+| [kiosk_speaker_mount.py](kiosk_speaker_mount.py) | Parametric model and export script |
+| [render.py](render.py) | Draws the PNG previews in `renders/` |
+| [view.py](view.py) | Sends the model to the OCP CAD Viewer in VS Code |
+| [AGENTS.md](AGENTS.md) | Context and conventions for AI agents (Copilot loads it automatically) |
+| [SESSION_NOTES.md](SESSION_NOTES.md) | Design decisions, history, and open items |
 
 ## Features
 - The speaker sits 20 mm deep in the cradle, so the top buttons and the grille stay clear.

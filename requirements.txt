@@ -1,1 +1,2 @@
 cadquery>=2.8
+ocp_vscode>=4.2  # live viewer for view.py (VS Code extension: bernhard-42.ocp-cad-viewer)

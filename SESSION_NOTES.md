@@ -11,8 +11,8 @@ Design history, decisions, and open items for the kiosk speaker plinth. Newest e
 1. **Measure the real parts** and update the parameters in `kiosk_speaker_mount.py`:
    - Stand base plate: width, depth, thickness, corner radius, and the positions of the existing screw holes (`STAND_BASE_*`, `STAND_HOLES`). The current values are scaled from the product image: 175 × 160 mm, 4 mm thick.
    - Speaker: length, depth, and height (`SPK_L/D/H`). The current values come from the listing: 165 × 45 × 54 mm, about 6.5 × 1.77 × 2.13 in.
-   - **Which end has the USB/AUX flap.** The owner said the flap is on "the opposite small side" (one of the short ends). The model assumes `PORT_END = "right"` when facing the grille; confirm this and flip it if needed.
    - Plug lengths of the right-angle Micro-USB and AUX cables, which set `PORT_BAY` (currently 32 mm).
+   - ~~Which end has the USB/AUX flap~~: **confirmed 2026-11-01** as the right end when viewed from the front (grille). `PORT_END = "right"` is correct.
 2. Regenerate, render, and review with the owner.
 3. Test-print. Consider a short test piece, such as only the port-bay corner or a thin slice of the stand recess, to check fit before the full ~10-hour print.
 4. Possible refinements the owner may want: split the plinth into two pieces for smaller printers, add a speaker strap or lock, or add a cable strain-relief clip inside the cavity.
@@ -36,6 +36,9 @@ Design history, decisions, and open items for the kiosk speaker plinth. Newest e
 - `render.py` section views cut away the half nearest the camera; an earlier bug kept the wrong half.
 
 ## History
+### 2026-11-01: Flap side confirmed
+- The owner confirmed the USB/AUX flap is on the short end that's hidden from view, on the **right when viewed from the front**. The model already used `PORT_END = "right"`, so no geometry changed.
+
 ### 2026-11-01: Initial build
 - Gathered requirements: a speaker attachment for the kiosk stand that hides cables and has one charging cable.
 - Researched the products. Amazon pages only partly loaded, so dimensions came from search results and owner-supplied images.

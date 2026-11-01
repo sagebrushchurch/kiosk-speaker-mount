@@ -34,9 +34,10 @@ All dimensions are parameters at the top of the script. The checked-in [.vscode/
 **Measure these and update them before printing:**
 - `STAND_BASE_W/D/T/R`: stand base plate width, depth, thickness, and corner radius. They currently come from the product image (175 × 160 mm).
 - `SPK_L/D/H`: speaker length, depth, and height. They currently use the listed 165 × 45 × 54 mm.
-- `PORT_END`: which end has the USB/AUX flap when you face the grille. The default is `"right"`.
 - `PORT_BAY`: room for the connected plugs. 32 mm assumes right-angle plugs; increase it for straight plugs.
 - `STAND_HOLES`: hole positions if you want to bolt the stand through the plinth.
+
+`PORT_END` (the end with the USB/AUX flap when you face the grille) is **confirmed as `"right"`** for the Soundcore 2.
 
 ## Project files
 | File | Purpose |
